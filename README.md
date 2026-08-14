@@ -29,6 +29,29 @@ The system will provide:
 
 ⸻
 
+## 📅 Sprint 1 — Day 1 Progress
+
+The team completed the initial project setup and problem understanding activities.
+
+### Completed
+
+- Repository created under KalviumCommunity.
+- Main branch protection configured.
+- Kanban project board created with `TODO`, `IN PROGRESS`, and `DONE` columns.
+- Day 1 standup completed.
+- Problem statement analyzed.
+- Users and user roles identified.
+
+### Current Focus
+
+The team is currently working on:
+
+- Finalizing the return request workflow.
+- Identifying open questions and business rules.
+- Finalizing the Team Charter.
+- Preparing the project documentation for the PRD phase.
+
+
 👥 Users and Roles
 
 Seller
@@ -300,18 +323,18 @@ These questions will be resolved during requirement analysis and mentor discussi
 
 📈 Development Status
 
-Phase 1 — Understanding & Setup
+### Day 1 — Setup & Understanding
 
-* Repository created
-* Team members added
-* Main branch protected
-* Kanban board created
-* Day 1 standup completed
-* Problem statement analyzed
-* Users and user roles identified
-* Return request workflow finalized
-* Open questions finalized
-* Team Charter completed
+- [x] Repository created
+- [x] Team members added
+- [x] Main branch protected
+- [x] Kanban board created
+- [x] Day 1 standup completed
+- [x] Problem statement analyzed
+- [x] Users and roles identified
+- [ ] Return request workflow finalized
+- [ ] Open questions finalized
+- [ ] Team Charter completed
 
 Phase 2 — Product Planning
 
