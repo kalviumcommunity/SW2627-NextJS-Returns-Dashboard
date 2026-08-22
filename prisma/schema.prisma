@@ -1,0 +1,99 @@
+// Returns Dashboard — Prisma schema
+// Data model:
+//   Seller          -> the account that logs in and makes decisions
+//   ReturnRequest   -> one customer return, moves PENDING -> APPROVED / REJECTED / AUTO_APPROVED
+//   AuditLogEntry   -> immutable trail of everything that happened to a return, shown to
+//                      both the seller and the read-only Customer Support View
+//   SlaSetting      -> per-seller configurable auto-approval window (default 48h)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  AUTO_APPROVED
+}
+
+enum DecidedByType {
+  SELLER
+  SYSTEM
+}
+
+enum AuditAction {
+  REQUEST_CREATED
+  APPROVED
+  REJECTED
+  AUTO_APPROVED
+  SLA_SETTING_CHANGED
+}
+
+model Seller {
+  id            String        @id @default(cuid())
+  sellerCode    String        @unique // e.g. IN123456, shown in the UI
+  name          String
+  email         String        @unique
+  passwordHash  String
+  createdAt     DateTime      @default(now())
+
+  returnRequests ReturnRequest[]
+  auditLogs      AuditLogEntry[]
+  slaSetting     SlaSetting?
+}
+
+model ReturnRequest {
+  id            String        @id @default(cuid())
+  rmaId         String        @unique // RMA-784512
+  orderId       String
+  customerName  String
+  item          String
+  reason        String
+  status        ReturnStatus  @default(PENDING)
+
+  requestedAt   DateTime      @default(now())
+  slaDeadline   DateTime      // requestedAt + seller's SLA window at time of creation
+  decidedAt     DateTime?
+  decidedByType DecidedByType?
+  decisionReason String?
+
+  seller        Seller        @relation(fields: [sellerId], references: [id])
+  sellerId      String
+
+  auditLogs     AuditLogEntry[]
+
+  @@index([sellerId, status])
+  @@index([slaDeadline])
+}
+
+model AuditLogEntry {
+  id              String       @id @default(cuid())
+  action          AuditAction
+  message         String
+  actorLabel      String       // "Seller One", "System", etc — denormalized for fast display
+
+  returnRequest   ReturnRequest? @relation(fields: [returnRequestId], references: [id])
+  returnRequestId String?
+
+  seller          Seller?      @relation(fields: [sellerId], references: [id])
+  sellerId        String?
+
+  createdAt       DateTime     @default(now())
+
+  @@index([sellerId, createdAt])
+  @@index([returnRequestId])
+}
+
+model SlaSetting {
+  id              String   @id @default(cuid())
+  seller          Seller   @relation(fields: [sellerId], references: [id])
+  sellerId        String   @unique
+  windowHours     Int      @default(48)
+  updatedAt       DateTime @updatedAt
+}
