@@ -4,7 +4,7 @@ name: Deploy Returns Dashboard to GCP
 # build the Docker image, push it to Artifact Registry, run any pending
 # Prisma migrations against Cloud SQL (Postgres), then deploy the new
 # revision. Also runs on a schedule to hit the auto-approve endpoint as a
-# belt-and-braces SLA sweep even if the app is idle.
+# belt-and-braces SLA sweep even if the app is idle
 
 on:
   push:
