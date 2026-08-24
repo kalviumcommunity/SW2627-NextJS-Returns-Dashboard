@@ -1,0 +1,75 @@
+name: Deploy Returns Dashboard to GCP
+
+# Keeps the latest code deployed on GCP Cloud Run: on every push to main we
+# build the Docker image, push it to Artifact Registry, run any pending
+# Prisma migrations against Cloud SQL (Postgres), then deploy the new
+# revision. Also runs on a schedule to hit the auto-approve endpoint as a
+# belt-and-braces SLA sweep even if the app is idle
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/15 * * * *" # SLA sweep every 15 minutes
+  workflow_dispatch: {}
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  SERVICE_NAME: returns-dashboard
+  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/returns-dashboard/app
+
+jobs:
+  deploy:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+
+      - name: Push image
+        run: docker push $IMAGE --all-tags
+
+      - name: Run Prisma migrations against Cloud SQL
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            $IMAGE:${{ github.sha }} \
+            npx prisma migrate deploy
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          env_vars: |
+            AUTH_SECRET=${{ secrets.AUTH_SECRET }}
+            CRON_SECRET=${{ secrets.CRON_SECRET }}
+          secrets: |
+            DATABASE_URL=${{ secrets.DATABASE_URL_SECRET_NAME }}:latest
+
+  sla-sweep:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit auto-approve endpoint
+        run: |
+          curl -sf -X POST "${{ secrets.APP_URL }}/api/returns/auto-approve" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
