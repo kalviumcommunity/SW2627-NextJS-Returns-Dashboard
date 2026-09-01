@@ -4,13 +4,15 @@ name: Deploy Returns Dashboard to GCP
 # build the Docker image, push it to Artifact Registry, run any pending
 # Prisma migrations against Cloud SQL (Postgres), then deploy the new
 # revision. Also runs on a schedule to hit the auto-approve endpoint as a
-# belt-and-braces SLA sweep even if the app is idle
+# belt-and-braces SLA sweep even if the app is idle.
 
 on:
   push:
     branches: [main]
+
   schedule:
     - cron: "*/15 * * * *" # SLA sweep every 15 minutes
+
   workflow_dispatch: {}
 
 env:
@@ -22,30 +24,52 @@ env:
 jobs:
   deploy:
     if: github.event_name != 'schedule'
+
     runs-on: ubuntu-latest
+
+    # Required for GitHub OIDC authentication
     permissions:
       contents: read
       id-token: write
-    steps:
-      - uses: actions/checkout@v4
 
-      - id: auth
+    steps:
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Authenticate GitHub Actions with Google Cloud using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: "projects/252494086057/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-deployer@concise-torus-428414-r3.iam.gserviceaccount.com"
 
-      - uses: google-github-actions/setup-gcloud@v2
+      # Install/configure gcloud
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
 
+      # Configure Docker to authenticate with Artifact Registry
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+        run: |
+          gcloud auth configure-docker \
+            ${{ secrets.GCP_REGION }}-docker.pkg.dev \
+            --quiet
 
+      # Build Docker image
       - name: Build image
-        run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+        run: |
+          docker build \
+            -t $IMAGE:${{ github.sha }} \
+            -t $IMAGE:latest \
+            .
 
+      # Push Docker image to Artifact Registry
       - name: Push image
-        run: docker push $IMAGE --all-tags
+        run: |
+          docker push $IMAGE --all-tags
 
+      # Run Prisma migrations
       - name: Run Prisma migrations against Cloud SQL
         run: |
           docker run --rm \
@@ -53,23 +77,30 @@ jobs:
             $IMAGE:${{ github.sha }} \
             npx prisma migrate deploy
 
+      # Deploy Docker image to Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
           image: ${{ env.IMAGE }}:${{ github.sha }}
+
           env_vars: |
             AUTH_SECRET=${{ secrets.AUTH_SECRET }}
             CRON_SECRET=${{ secrets.CRON_SECRET }}
+
           secrets: |
             DATABASE_URL=${{ secrets.DATABASE_URL_SECRET_NAME }}:latest
 
+  # Scheduled SLA sweep
   sla-sweep:
     if: github.event_name == 'schedule'
+
     runs-on: ubuntu-latest
+
     steps:
       - name: Hit auto-approve endpoint
         run: |
-          curl -sf -X POST "${{ secrets.APP_URL }}/api/returns/auto-approve" \
+          curl -sf -X POST \
+            "${{ secrets.APP_URL }}/api/returns/auto-approve" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
