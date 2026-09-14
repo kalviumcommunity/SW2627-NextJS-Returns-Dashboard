@@ -118,8 +118,5 @@ DATABASE_URL="your-production-connection-string" npm run db:seed
   download Prisma's query engine. Vercel's build environment has unrestricted internet access, so
   this resolves automatically there — it's only a concern in network-restricted local/CI sandboxes.
 - The demo login accepts any credentials and signs you in as the seeded "Seller One" account —
-  intentional for a prototype; swap the `demo` branch out of `app/api/auth/login/route.ts` before
-  connecting real seller accounts.
-- A GitHub Actions workflow targeting GCP Cloud Run (`.github/workflows/deploy.yml`) is kept in
-  this repo as an alternative deployment path — it is not used by the Vercel deployment and can be
-  deleted if you don't intend to also deploy to GCP.
+  intentional for a prototype; swap the `demo` branch out of `app/api/auth/login/route.ts`
+  before connecting real seller accounts.
