@@ -18,6 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p public
 RUN npx prisma generate
+ENV DOCKER_BUILD=true
 RUN npm run build
 
 # ---- runtime ----
@@ -35,3 +36,4 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 EXPOSE 8080
 CMD ["node", "server.js"]
+
