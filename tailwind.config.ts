@@ -6,9 +6,15 @@ const config: Config = {
     "./components/**/*.{ts,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        "amazon-orange": "#FF9900",
+        "amazon-dark": "#131A22",
+      },
+    },
   },
   plugins: [],
 };
 
 export default config;
+
