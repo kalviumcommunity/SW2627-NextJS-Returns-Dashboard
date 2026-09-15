@@ -20,16 +20,21 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, demo }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // Fallback if response body is not valid JSON
+      }
       if (!res.ok) {
-        setError(data.error || "Sign in failed. Please try again.");
+        setError(data.error || `Sign in failed (${res.status}). Please try again.`);
         setLoading(false);
         return;
       }
       router.push("/dashboard");
       router.refresh();
     } catch {
-      setError("Couldn't reach the server. Please try again.");
+      setError("Couldn't reach the server. Please check your network connection and try again.");
       setLoading(false);
     }
   }
