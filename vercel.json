@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/returns/auto-approve",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

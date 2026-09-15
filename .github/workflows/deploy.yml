@@ -42,8 +42,8 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/252494086057/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
-          service_account: "github-deployer@concise-torus-428414-r3.iam.gserviceaccount.com"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       # Install/configure gcloud
       - name: Set up Google Cloud CLI
@@ -69,13 +69,27 @@ jobs:
         run: |
           docker push $IMAGE --all-tags
 
-      # Run Prisma migrations
-      - name: Run Prisma migrations against Cloud SQL
+      # Run Prisma migrations as a one-off Cloud Run Job instead of `docker run`
+      # on this GitHub-hosted runner. The old approach passed DATABASE_URL via
+      # `docker run -e DATABASE_URL=...`, which puts the raw secret into the
+      # process's argument list (visible to anything on the runner that can
+      # read `ps aux` while the container starts, and into shell/audit logs
+      # on self-hosted runners). Running it as a Cloud Run Job with
+      # `--set-secrets` instead means Google's infrastructure injects the
+      # value straight from Secret Manager into the job's environment —
+      # the plaintext connection string never exists on this runner at all.
+      - name: Run Prisma migrations (Cloud Run Job)
         run: |
-          docker run --rm \
-            -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-            $IMAGE:${{ github.sha }} \
-            npx prisma migrate deploy
+          gcloud run jobs deploy migrate-db \
+            --image="$IMAGE:${{ github.sha }}" \
+            --region="$REGION" \
+            --command="npx" \
+            --args="prisma,migrate,deploy" \
+            --set-secrets="DATABASE_URL=${{ secrets.DATABASE_URL_SECRET_NAME }}:latest" \
+            --max-retries=0 \
+            --quiet
+
+          gcloud run jobs execute migrate-db --region="$REGION" --wait
 
       # Deploy Docker image to Cloud Run
       - name: Deploy to Cloud Run

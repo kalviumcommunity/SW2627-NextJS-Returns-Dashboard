@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [rejectTarget, setRejectTarget] = useState<ReturnRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -40,15 +41,33 @@ export default function DashboardPage() {
 
   async function load() {
     setLoading(true);
-    const [rRes, lRes] = await Promise.all([
-      fetch("/api/returns"),
-      fetch("/api/audit-logs?limit=3"),
-    ]);
-    const rData = await rRes.json();
-    const lData = await lRes.json();
-    setReturns(rData.returns ?? []);
-    setLogs(lData.logs ?? []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [rRes, lRes] = await Promise.all([
+        fetch("/api/returns"),
+        fetch("/api/audit-logs?limit=3"),
+      ]);
+      if (!rRes.ok || !lRes.ok) {
+        throw new Error("The server returned an error loading returns data.");
+      }
+      const rData = await rRes.json();
+      const lData = await lRes.json();
+      setReturns(rData.returns ?? []);
+      setLogs(lData.logs ?? []);
+    } catch (err) {
+      // "Failed to fetch" specifically means the browser never got a
+      // response at all — the dev server was mid-restart/compiling, the
+      // network dropped, or (in production) the request was aborted before
+      // completing. Showing a retryable banner here instead of letting this
+      // throw keeps one flaky request from crashing the whole page.
+      setLoadError(
+        err instanceof Error && err.message.includes("fetch")
+          ? "Couldn't reach the server. Check that it's running, then retry."
+          : "Something went wrong loading returns. Please retry."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
